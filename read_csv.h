@@ -109,10 +109,19 @@ void conta_classes(DataPoint data[], int n, int *n0, int *n1) {
     }
 }
 
+// no windows (mingw) o RAND_MAX e so 32767, entao rand() sozinho nao
+// alcanca indices maiores que isso e o shuffle fica quebrado.
+// combino dois rand() pra gerar um numero grande o suficiente.
+// o & 0x3FFFFFFF garante que fica positivo (senao o << pode virar
+// numero negativo e quebrar o % depois)
+int rand_grande() {
+    return ((rand() << 15) | rand()) & 0x3FFFFFFF;
+}
+
 // embaralha o vetor (fisher-yates)
 void shuffle(DataPoint data[], int n) {
     for (int i = n - 1; i > 0; i--) {
-        int j = rand() % (i + 1);
+        int j = rand_grande() % (i + 1);
         DataPoint tmp = data[i];
         data[i] = data[j];
         data[j] = tmp;

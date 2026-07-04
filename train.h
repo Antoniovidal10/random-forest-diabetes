@@ -201,8 +201,9 @@ Floresta *treina(DataPoint train[], int n) {
 
     for (int t = 0; t < N_TREES; t++) {
         // bootstrap: sorteia n amostras com reposicao
+        // usa rand_grande pq n passa de 32767 (limite do rand no windows)
         for (int i = 0; i < n; i++)
-            amostra[i] = train[rand() % n];
+            amostra[i] = train[rand_grande() % n];
 
         f->arvores[t] = cria_arvore(amostra, n, 0);
 
