@@ -10,13 +10,13 @@
 #define N_TREES 200
 #define MAX_DEPTH 8
 #define MIN_SAMPLES 10
-#define N_FEAT_SPLIT 6      // ~raiz de 35
+#define N_FEAT_SPLIT 6
 #define MAX_THRESH 20
 
 typedef struct No {
     int feature;
     double limiar;
-    int classe;             // usado se for folha
+    int classe;
     struct No *esq, *dir;
     int folha;
 } No;
@@ -33,7 +33,6 @@ int compara(const void *a, const void *b) {
     return 0;
 }
 
-// impureza de gini de um conjunto
 double gini(DataPoint *s, int n) {
     if (n == 0) return 0;
     int uns = 0;
@@ -43,7 +42,6 @@ double gini(DataPoint *s, int n) {
     return 1.0 - p*p - (1-p)*(1-p);
 }
 
-// retorna a classe que mais aparece
 int classe_maioria(DataPoint *s, int n) {
     int uns = 0;
     for (int i = 0; i < n; i++)
@@ -52,8 +50,7 @@ int classe_maioria(DataPoint *s, int n) {
     return 0;
 }
 
-// separa o vetor: menores que o limiar vao pra esquerda
-// retorna quantos ficaram na esquerda
+// coloca os menores que o limiar na esquerda, retorna quantos ficaram la
 int separa(DataPoint *v, int n, int feat, double lim) {
     int e = 0;
     for (int i = 0; i < n; i++) {
@@ -67,14 +64,13 @@ int separa(DataPoint *v, int n, int feat, double lim) {
     return e;
 }
 
-// pega os possiveis limiares de uma feature (meio termo entre valores distintos)
+// pega os limiares possiveis (meio termo entre os valores distintos da feature)
 int pega_limiares(DataPoint *s, int n, int feat, double *out, int max) {
     double *vals = malloc(n * sizeof(double));
     for (int i = 0; i < n; i++)
         vals[i] = s[i].features[feat];
     qsort(vals, n, sizeof(double), compara);
 
-    // tira os repetidos
     int u = 0;
     for (int i = 0; i < n; i++)
         if (u == 0 || vals[i] != vals[u-1])
@@ -86,7 +82,6 @@ int pega_limiares(DataPoint *s, int n, int feat, double *out, int max) {
         return 0;
     }
     if (u == 2) {
-        // feature binaria, so tem um corte possivel
         out[c++] = (vals[0] + vals[1]) / 2.0;
     } else {
         int passo = (u - 1 <= max) ? 1 : (u / max);
@@ -97,7 +92,6 @@ int pega_limiares(DataPoint *s, int n, int feat, double *out, int max) {
     return c;
 }
 
-// sorteia N_FEAT_SPLIT features diferentes
 void sorteia_features(int *idx) {
     int pool[NUM_FEATURES];
     for (int i = 0; i < NUM_FEATURES; i++)
@@ -110,7 +104,6 @@ void sorteia_features(int *idx) {
         idx[i] = pool[i];
 }
 
-// procura o melhor corte olhando só as features sorteadas
 void melhor_corte(DataPoint *s, int n, int *bfeat, double *blim, double *bgini) {
     *bgini = 2.0;
     *bfeat = -1;
@@ -147,8 +140,7 @@ No *cria_arvore(DataPoint *s, int n, int prof) {
     No *no = calloc(1, sizeof(No));
 
     double g = gini(s, n);
-    // condicoes de parada
-    if (prof >= MAX_DEPTH || n < MIN_SAMPLES || g < 0.0000001) {
+    if (prof >= MAX_DEPTH || n < MIN_SAMPLES || g < 1e-7) {
         no->folha = 1;
         no->classe = classe_maioria(s, n);
         return no;
@@ -158,8 +150,7 @@ No *cria_arvore(DataPoint *s, int n, int prof) {
     double blim, bgini;
     melhor_corte(s, n, &bfeat, &blim, &bgini);
 
-    // se nao achou nada melhor vira folha
-    if (bfeat == -1 || bgini >= g - 0.0000001) {
+    if (bfeat == -1 || bgini >= g - 1e-7) {
         no->folha = 1;
         no->classe = classe_maioria(s, n);
         return no;
@@ -200,8 +191,7 @@ Floresta *treina(DataPoint train[], int n) {
     DataPoint *amostra = malloc(n * sizeof(DataPoint));
 
     for (int t = 0; t < N_TREES; t++) {
-        // bootstrap: sorteia n amostras com reposicao
-        // usa rand_grande pq n passa de 32767 (limite do rand no windows)
+        // bootstrap - sorteia n amostras com reposicao
         for (int i = 0; i < n; i++)
             amostra[i] = train[rand_grande() % n];
 
@@ -217,7 +207,6 @@ Floresta *treina(DataPoint train[], int n) {
     return f;
 }
 
-// desce a amostra pela arvore ate chegar numa folha
 int prediz_arvore(No *no, DataPoint *s) {
     while (!no->folha) {
         if (s->features[no->feature] < no->limiar)
@@ -228,7 +217,7 @@ int prediz_arvore(No *no, DataPoint *s) {
     return no->classe;
 }
 
-// retorna a fracao de arvores que votaram 1
+// fracao de arvores que votaram 1 pra cada amostra
 float *votos(Floresta *f, DataPoint *s, int n) {
     float *sc = calloc(n, sizeof(float));
     for (int i = 0; i < n; i++) {
@@ -240,7 +229,7 @@ float *votos(Floresta *f, DataPoint *s, int n) {
     return sc;
 }
 
-// testa varios limiares de decisao no treino e pega o que da mais acerto
+// procura o limiar de decisao que da mais acerto no treino
 float melhor_limiar_voto(float *sc, DataPoint *train, int n) {
     float melhor = 0.5, melhor_acc = 0;
     for (int t = 35; t <= 65; t++) {
