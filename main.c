@@ -4,11 +4,9 @@
 #include "train.h"
 
 // projeto de random forest pra prever diabetes
-// dataset BRFSS 2015, 80% treino e 20% teste
-
-DataPoint *dados;
-DataPoint *treino;
-DataPoint *teste;
+// dataset BRFSS 2015 - funciona com o balanceado (50/50) e com o completo
+// so trocar o data.csv na pasta, o codigo se adapta sozinho
+// 80% treino e 20% teste
 
 int main() {
     srand(time(NULL));
@@ -17,14 +15,31 @@ int main() {
     printf("%d arvores, profundidade %d, %d features por split\n\n",
            N_TREES, MAX_DEPTH, N_FEAT_SPLIT);
 
-    dados  = malloc(MAX_ROWS * sizeof(DataPoint));
-    treino = malloc(MAX_ROWS * sizeof(DataPoint));
-    teste  = malloc(MAX_ROWS * sizeof(DataPoint));
+    // aloca no heap pq o dataset completo tem 253 mil linhas e nao cabe na pilha
+    DataPoint *dados  = malloc(MAX_ROWS * sizeof(DataPoint));
+    DataPoint *treino = malloc(MAX_ROWS * sizeof(DataPoint));
+    DataPoint *teste  = malloc(MAX_ROWS * sizeof(DataPoint));
+
+    if (dados == NULL || treino == NULL || teste == NULL) {
+        printf("faltou memoria\n");
+        return 1;
+    }
 
     int total = 0;
     if (read_csv("data.csv", dados, &total) != 0)
         return 1;
-    printf("li %d amostras, %d features cada\n", total, NUM_FEATURES);
+
+    // mostra se o dataset esta balanceado ou nao
+    int n0, n1;
+    conta_classes(dados, total, &n0, &n1);
+    printf("li %d amostras (%d features cada)\n", total, NUM_FEATURES);
+    printf("sem diabetes: %d (%.1f%%)   com diabetes: %d (%.1f%%)\n",
+           n0, 100.0 * n0 / total, n1, 100.0 * n1 / total);
+    if (n1 * 100 / total < 40 || n1 * 100 / total > 60)
+        printf(">> dataset DESBALANCEADO - olhar recall e f1, nao so a acuracia\n");
+    else
+        printf(">> dataset balanceado\n");
+    printf("\n");
 
     int n_tr, n_te;
     split_data(dados, total, treino, teste, &n_tr, &n_te);

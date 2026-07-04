@@ -6,7 +6,9 @@
 #include <string.h>
 #include <time.h>
 
-#define MAX_ROWS 71000
+// da pra usar tanto o dataset balanceado (70692 linhas) quanto o completo
+// (253680 linhas), o codigo conta as linhas sozinho e aloca o tanto que precisa
+#define MAX_ROWS 260000
 #define NUM_ORIG 21
 #define NUM_ENGINEERED 14
 #define NUM_FEATURES (NUM_ORIG + NUM_ENGINEERED)
@@ -92,6 +94,16 @@ int read_csv(const char *filename, DataPoint data[], int *num_samples) {
     fclose(file);
     *num_samples = row;
     return 0;
+}
+
+// conta quantos sao de cada classe (util pra ver se o dataset e balanceado)
+void conta_classes(DataPoint data[], int n, int *n0, int *n1) {
+    *n0 = 0;
+    *n1 = 0;
+    for (int i = 0; i < n; i++) {
+        if (data[i].label == 0) (*n0)++;
+        else (*n1)++;
+    }
 }
 
 // embaralha o vetor (fisher-yates)
