@@ -77,7 +77,10 @@ int read_csv(const char *filename, DataPoint data[], int *num_samples) {
         if (strlen(line) == 0) continue;
 
         char *tok = strtok(line, ",");
-        data[row].label = (int)atof(tok);
+        // o dataset completo tem 3 classes (0=sem, 1=pre, 2=diabetes)
+        // junto pre-diabetes e diabetes numa classe so pra ficar binario
+        int y = (int)atof(tok);
+        data[row].label = (y >= 1) ? 1 : 0;
 
         int feat = 0;
         while ((tok = strtok(NULL, ",")) != NULL && feat < NUM_ORIG) {
