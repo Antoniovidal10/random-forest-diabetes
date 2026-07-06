@@ -94,18 +94,41 @@ void shuffle(DataPoint data[], int n) {
     }
 }
 
+// divide 80/20 mantendo a mesma proporcao de cada classe nos dois lados
 void split_data(DataPoint data[], int n, DataPoint train[], DataPoint test[],
                 int *train_size, int *test_size) {
     shuffle(data, n);
-    int corte = (int)(n * TRAIN_SPLIT);
 
-    for (int i = 0; i < corte; i++)
-        train[i] = data[i];
-    for (int i = 0; i < n - corte; i++)
-        test[i] = data[corte + i];
+    // separa as duas classes
+    DataPoint *c0 = malloc(n * sizeof(DataPoint));
+    DataPoint *c1 = malloc(n * sizeof(DataPoint));
+    int n0 = 0, n1 = 0;
+    for (int i = 0; i < n; i++) {
+        if (data[i].label == 0) c0[n0++] = data[i];
+        else c1[n1++] = data[i];
+    }
 
-    *train_size = corte;
-    *test_size = n - corte;
+    int corte0 = (int)(n0 * TRAIN_SPLIT);
+    int corte1 = (int)(n1 * TRAIN_SPLIT);
+
+    int tr = 0, te = 0;
+    for (int i = 0; i < n0; i++) {
+        if (i < corte0) train[tr++] = c0[i];
+        else test[te++] = c0[i];
+    }
+    for (int i = 0; i < n1; i++) {
+        if (i < corte1) train[tr++] = c1[i];
+        else test[te++] = c1[i];
+    }
+
+    // embaralha de novo pra nao ficar tudo de uma classe junto
+    shuffle(train, tr);
+    shuffle(test, te);
+
+    *train_size = tr;
+    *test_size = te;
+    free(c0);
+    free(c1);
 }
 
 #endif

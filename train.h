@@ -7,10 +7,11 @@
 #include <math.h>
 #include "read_csv.h"
 
-#define N_TREES 200
-#define MAX_DEPTH 8
-#define MIN_SAMPLES 10
+#define N_TREES 300
+#define MAX_DEPTH 12
+#define MIN_SAMPLES 30
 #define N_FEAT_SPLIT 6
+#define PESO_POSITIVO 3   // no bootstrap, diabeticos sao sorteados com esse peso
 #define MAX_THRESH 20
 
 typedef struct No {
@@ -188,22 +189,36 @@ Floresta *treina(DataPoint train[], int n) {
     f->n = N_TREES;
     f->arvores = malloc(N_TREES * sizeof(No*));
 
+    // monta uma "urna" onde cada diabetico entra PESO_POSITIVO vezes.
+    // assim o bootstrap sorteia a classe minoritaria com mais frequencia
+    // e o modelo para de ignorar os diabeticos.
+    int tam_urna = 0;
+    for (int i = 0; i < n; i++)
+        tam_urna += (train[i].label == 1) ? PESO_POSITIVO : 1;
+
+    int *urna = malloc(tam_urna * sizeof(int));
+    int k = 0;
+    for (int i = 0; i < n; i++) {
+        int rep = (train[i].label == 1) ? PESO_POSITIVO : 1;
+        for (int r = 0; r < rep; r++)
+            urna[k++] = i;
+    }
+
     DataPoint *amostra = malloc(n * sizeof(DataPoint));
 
     for (int t = 0; t < N_TREES; t++) {
-        // bootstrap - sorteia n amostras com reposicao
         for (int i = 0; i < n; i++)
-            amostra[i] = train[rand_grande() % n];
+            amostra[i] = train[urna[rand_grande() % tam_urna]];
 
         f->arvores[t] = cria_arvore(amostra, n, 0);
 
-        if ((t + 1) % 50 == 0 || t == N_TREES - 1) {
-            printf("  %d/%d arvores\n", t + 1, N_TREES);
-            fflush(stdout);
-        }
+        if ((t + 1) % 50 == 0 || t == N_TREES - 1)
+            printf("  arvore %d de %d\n", t + 1, N_TREES);
+        fflush(stdout);
     }
 
     free(amostra);
+    free(urna);
     return f;
 }
 
@@ -230,22 +245,28 @@ float *votos(Floresta *f, DataPoint *s, int n) {
 }
 
 // procura o limiar de decisao que da mais acerto no treino
+// procura o corte de decisao que da o melhor f1 no treino.
+// uso f1 (e nao acuracia) pra funcionar bem tanto no balanceado
+// quanto no desbalanceado, onde a acuracia sozinha engana.
 float melhor_limiar_voto(float *sc, DataPoint *train, int n) {
-    float melhor = 0.5, melhor_acc = 0;
-    for (int t = 35; t <= 65; t++) {
+    float melhor = 0.5, melhor_f1 = 0;
+    for (int t = 20; t <= 65; t++) {
         float lim = t / 100.0f;
-        int acertos = 0;
+        int tp = 0, fp = 0, fn = 0;
         for (int i = 0; i < n; i++) {
             int pred = (sc[i] >= lim) ? 1 : 0;
-            if (pred == train[i].label) acertos++;
+            if (pred == 1 && train[i].label == 1) tp++;
+            else if (pred == 1 && train[i].label == 0) fp++;
+            else if (pred == 0 && train[i].label == 1) fn++;
         }
-        float acc = (float)acertos / n;
-        if (acc > melhor_acc) {
-            melhor_acc = acc;
+        float pre = (tp + fp > 0) ? (float)tp / (tp + fp) : 0;
+        float rec = (tp + fn > 0) ? (float)tp / (tp + fn) : 0;
+        float f1 = (pre + rec > 0) ? 2 * pre * rec / (pre + rec) : 0;
+        if (f1 > melhor_f1) {
+            melhor_f1 = f1;
             melhor = lim;
         }
     }
-    printf("  limiar de voto = %.2f (acc treino %.4f)\n", melhor, melhor_acc);
     return melhor;
 }
 
@@ -266,19 +287,15 @@ void avalia(int *pred, DataPoint *dados, int n, const char *nome) {
     float rec = (tp + fn > 0) ? (float)tp / (tp + fn) : 0;
     float f1 = (pre + rec > 0) ? 2 * pre * rec / (pre + rec) : 0;
 
-    printf("\n=== %s ===\n", nome);
-    printf("matriz de confusao:\n");
-    printf("            pred 0    pred 1\n");
-    printf("real 0:   %7d   %7d\n", tn, fp);
-    printf("real 1:   %7d   %7d\n", fn, tp);
-    printf("\n");
-    printf("TP=%d FP=%d TN=%d FN=%d\n", tp, fp, tn, fn);
-    printf("erro     = %.4f (%.2f%%)\n", err, err * 100);
-    printf("acuracia = %.4f (%.2f%%)\n", acc, acc * 100);
-    printf("precisao = %.4f (%.2f%%)\n", pre, pre * 100);
-    printf("recall   = %.4f (%.2f%%)\n", rec, rec * 100);
-    printf("f1 score = %.4f (%.2f%%)\n", f1, f1 * 100);
-    printf("\n");
+    printf("\nResultados no conjunto de %s:\n", nome);
+    printf("  acertou %d de %d amostras\n", tp + tn, n);
+    printf("  dos %d diabeticos reais, o modelo encontrou %d\n", tp + fn, tp);
+    printf("  deu %d alarmes falsos (disse que tinha, mas nao tinha)\n\n", fp);
+    printf("  acuracia .. %.2f%%\n", acc * 100);
+    printf("  erro ...... %.2f%%\n", err * 100);
+    printf("  precisao .. %.2f%%\n", pre * 100);
+    printf("  recall .... %.2f%%\n", rec * 100);
+    printf("  f1 ........ %.2f%%\n", f1 * 100);
 }
 
 #endif
